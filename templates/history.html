@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeGraphAI — Analysis History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>TradeGraphAI</h1>
+            <p class="subtitle">Analysis History</p>
+        </div>
+    </header>
+
+    <main>
+        <div style="margin-bottom:1rem">
+            <a href="/" class="btn-secondary" style="text-decoration:none;display:inline-block">Back to Analysis</a>
+        </div>
+
+        <section class="card">
+            <h2>Recent Analyses</h2>
+            <div id="history-table-wrap">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Ticker</th>
+                            <th>Decision</th>
+                            <th>Confidence</th>
+                            <th>Risk</th>
+                            <th>Summary</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body"></tbody>
+                </table>
+            </div>
+            <p id="no-history" class="hidden" style="color:var(--text-dim);text-align:center;padding:2rem">No analysis history yet.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>For educational and research purposes only. Not financial advice.</p>
+    </footer>
+
+    <script>
+        async function loadHistory() {
+            const resp = await fetch("/api/history?limit=100");
+            const data = await resp.json();
+            const tbody = document.getElementById("history-body");
+
+            if (!data.length) {
+                document.getElementById("no-history").classList.remove("hidden");
+                return;
+            }
+
+            data.forEach(r => {
+                const tr = document.createElement("tr");
+                const conf = r.confidence != null ? Math.round(r.confidence * 100) + "%" : "—";
+                const date = r.created_at ? new Date(r.created_at).toLocaleString() : "—";
+                tr.innerHTML = `
+                    <td>${date}</td>
+                    <td><strong>${r.ticker}</strong></td>
+                    <td><span class="decision-badge decision-${r.decision}">${r.decision}</span></td>
+                    <td>${conf}</td>
+                    <td><span class="risk-${r.risk_level || 'unknown'}">${r.risk_level || '—'}</span></td>
+                    <td class="summary-cell">${r.summary || '—'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+        loadHistory();
+    </script>
+</body>
+</html>

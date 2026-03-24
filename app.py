@@ -218,10 +218,15 @@ def get_job(job_id):
 
 
 @app.route("/api/history")
-def history():
+def history_api():
     """Return recent analysis history from SQLite."""
     limit = request.args.get("limit", 50, type=int)
     return jsonify(get_history(limit))
+
+
+@app.route("/history")
+def history_page():
+    return render_template("history.html")
 
 
 if __name__ == "__main__":

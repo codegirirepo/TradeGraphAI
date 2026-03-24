@@ -257,6 +257,13 @@ footer {
     font-size: 0.8rem; color: var(--text-dim);
 }
 
+/* ── History Table ────────────────────────────────────── */
+.history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.history-table th, .history-table td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border); }
+.history-table th { color: var(--text-dim); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+.summary-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); font-size: 0.8rem; }
+#history-table-wrap { overflow-x: auto; }
+
 /* ── Scrollbar ────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
