@@ -109,10 +109,16 @@ function listenToStream(jobId, total) {
 
     evtSource.addEventListener("done", (e) => {
         evtSource.close();
+        const data = JSON.parse(e.data);
         document.getElementById("progress-text").textContent = "All analyses complete!";
         document.getElementById("progress-bar").style.width = "100%";
         document.getElementById("analyze-btn").disabled = false;
         addLog("All analyses complete!", true);
+
+        // Render portfolio risk warnings
+        if (data.portfolio_risk && data.portfolio_risk.warnings && data.portfolio_risk.warnings.length) {
+            renderPortfolioWarnings(data.portfolio_risk);
+        }
     });
 
     evtSource.onerror = () => {
@@ -204,4 +210,21 @@ function num(v) {
 function getPortfolioValue() {
     const val = parseInt(document.getElementById("portfolio-value").value);
     return isNaN(val) || val < 1000 ? 100000 : val;
+}
+
+function renderPortfolioWarnings(risk) {
+    const section = document.getElementById("results-section");
+    // Remove old warnings if any
+    const old = document.getElementById("portfolio-warnings");
+    if (old) old.remove();
+
+    const div = document.createElement("div");
+    div.id = "portfolio-warnings";
+    div.className = "card warnings-card";
+    div.innerHTML = `
+        <h3>Portfolio Risk Warnings</h3>
+        <ul>${risk.warnings.map(w => `<li>${w}</li>`).join("")}</ul>
+        ${risk.sector_breakdown ? `<p class="sector-info">Sectors: ${Object.entries(risk.sector_breakdown).map(([s,c]) => `${s} (${c})`).join(", ")}</p>` : ""}
+    `;
+    section.insertBefore(div, section.firstChild.nextSibling);
 }

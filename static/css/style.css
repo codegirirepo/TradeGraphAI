@@ -239,6 +239,18 @@ main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
 .signal-bearish { color: var(--sell); }
 .signal-neutral, .signal-mixed, .signal-sideways { color: var(--hold); }
 
+/* ── Warnings ─────────────────────────────────────────── */
+.warnings-card { border-color: var(--medium); }
+.warnings-card h3 { color: var(--medium); }
+.warnings-card ul { list-style: none; padding: 0; }
+.warnings-card li {
+    padding: 0.4rem 0.8rem; margin: 0.3rem 0;
+    background: rgba(243, 156, 18, 0.1); border-radius: 6px;
+    font-size: 0.85rem; color: var(--medium);
+}
+.warnings-card li::before { content: "\26A0  "; }
+.sector-info { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem; }
+
 /* ── Footer ───────────────────────────────────────────── */
 footer {
     text-align: center; padding: 2rem;

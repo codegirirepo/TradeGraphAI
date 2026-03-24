@@ -63,7 +63,35 @@ def run_analysis(ticker: str, portfolio_value: float = 100_000) -> dict:
     # Execute the LangGraph pipeline
     final_state = _graph.invoke(initial_state)
 
-    # Build clean output
+    result = _format_result(ticker, final_state)
+    return result
+
+
+def run_analysis_raw(ticker: str, portfolio_value: float = 100_000) -> tuple[dict, dict]:
+    """Same as run_analysis but also returns the raw pipeline state."""
+    ticker = ticker.upper().strip()
+    logger.info(f"{'='*60}")
+    logger.info(f"  STARTING ANALYSIS: {ticker}")
+    logger.info(f"{'='*60}")
+
+    initial_state = {
+        "ticker": ticker,
+        "market_data": {},
+        "technicals": {},
+        "fundamentals": {},
+        "sentiment": {},
+        "risk": {},
+        "decision": "",
+        "confidence": 0.0,
+        "logs": [],
+        "portfolio_value": portfolio_value,
+    }
+    final_state = _graph.invoke(initial_state)
+    result = _format_result(ticker, final_state)
+    return result, final_state
+
+
+def _format_result(ticker: str, final_state: dict) -> dict:
     risk = final_state.get("risk", {})
     market = final_state.get("market_data", {})
     technicals = final_state.get("technicals", {})

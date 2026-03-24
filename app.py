@@ -17,8 +17,9 @@ from flask import Flask, render_template, request, jsonify, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from main import run_analysis
+from main import run_analysis, run_analysis_raw
 from tools.storage import save_job, complete_job, save_result, get_history
+from tools.portfolio import analyze_portfolio_risk
 
 logging.basicConfig(
     level=logging.INFO,
@@ -78,6 +79,7 @@ def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
     """Background worker — runs analysis for each ticker sequentially."""
     job = _jobs[job_id]
     total = len(tickers)
+    raw_states = []  # for portfolio correlation
 
     for i, ticker in enumerate(tickers, 1):
         job["current"] = ticker
@@ -89,10 +91,15 @@ def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
         })
 
         try:
-            result = run_analysis(ticker, portfolio_value=portfolio_value)
+            result, state = run_analysis_raw(ticker, portfolio_value=portfolio_value)
             if "details" not in result:
                 result["details"] = {}
             job["results"].append(result)
+            raw_states.append({
+                "ticker": ticker,
+                "_history": state.get("market_data", {}).get("history"),
+                "_sector": state.get("market_data", {}).get("sector", "Unknown"),
+            })
             save_result(job_id, result)
             _send_event(job_id, "result", result)
         except Exception as e:
@@ -103,10 +110,19 @@ def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
             save_result(job_id, err)
             _send_event(job_id, "result", err)
 
+    # Portfolio-level risk analysis
+    portfolio_risk = {}
+    if len(raw_states) >= 2:
+        portfolio_risk = analyze_portfolio_risk(raw_states)
+
     job["status"] = "completed"
     job["completed_at"] = datetime.now().isoformat()
+    job["portfolio_risk"] = portfolio_risk
     complete_job(job_id)
-    _send_event(job_id, "done", {"message": "All analyses complete", "total": total})
+    _send_event(job_id, "done", {
+        "message": "All analyses complete", "total": total,
+        "portfolio_risk": portfolio_risk,
+    })
 
 
 # ── Routes ───────────────────────────────────────────────────────────────
