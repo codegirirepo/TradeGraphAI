@@ -115,6 +115,9 @@ function listenToStream(jobId, total) {
         document.getElementById("analyze-btn").disabled = false;
         addLog("All analyses complete!", true);
 
+        // Show export button
+        document.getElementById("export-btn").classList.remove("hidden");
+
         // Render portfolio risk warnings
         if (data.portfolio_risk && data.portfolio_risk.warnings && data.portfolio_risk.warnings.length) {
             renderPortfolioWarnings(data.portfolio_risk);

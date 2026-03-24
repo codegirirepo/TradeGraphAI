@@ -8,7 +8,7 @@ Usage:
     Open http://localhost:5000
 """
 
-import json, logging, uuid, threading, time, re
+import json, logging, uuid, threading, time, re, csv, io
 from datetime import datetime
 from queue import Queue
 
@@ -222,6 +222,25 @@ def history_api():
     """Return recent analysis history from SQLite."""
     limit = request.args.get("limit", 50, type=int)
     return jsonify(get_history(limit))
+
+
+@app.route("/api/export/csv")
+def export_csv():
+    """Export analysis history as CSV download."""
+    rows = get_history(500)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Date", "Ticker", "Decision", "Confidence", "Risk Level", "Summary"])
+    for r in rows:
+        writer.writerow([
+            r.get("created_at", ""), r.get("ticker", ""), r.get("decision", ""),
+            r.get("confidence", ""), r.get("risk_level", ""), r.get("summary", ""),
+        ])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=tradegraph_history.csv"},
+    )
 
 
 @app.route("/history")
