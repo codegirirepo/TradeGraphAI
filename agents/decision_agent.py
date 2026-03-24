@@ -1,0 +1,66 @@
+"""Decision Agent — combines all agent signals into a final BUY / SELL / HOLD."""
+
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def decision_agent(state: dict) -> dict:
+    ticker = state["ticker"]
+    logger.info(f"[DecisionAgent] Generating decision for {ticker}")
+
+    risk = state.get("risk", {})
+    technicals = state.get("technicals", {})
+    fundamentals = state.get("fundamentals", {})
+    sentiment = state.get("sentiment", {})
+    market = state.get("market_data", {})
+
+    # --- If risk is high, skip trade immediately ---
+    if risk.get("level") == "high":
+        state["decision"] = "HOLD"
+        state["confidence"] = 0.2
+        state["logs"].append("[DecisionAgent] HOLD — risk too high")
+        return state
+
+    # --- Weighted scoring system ---
+    score = 0.0
+    weights = {"technical": 0.30, "fundamental": 0.25, "sentiment": 0.20, "trend": 0.15, "risk": 0.10}
+
+    # Technical score (-3 to +3 → normalise to -1..+1)
+    tech_score = technicals.get("signal_score", 0) / 3
+    score += weights["technical"] * tech_score
+
+    # Fundamental score (-4 to +4 → normalise)
+    fund_score = fundamentals.get("net_score", 0) / 4
+    score += weights["fundamental"] * fund_score
+
+    # Sentiment score (already -1..+1)
+    sent_score = sentiment.get("score", 0)
+    score += weights["sentiment"] * sent_score
+
+    # Trend
+    trend_map = {"bullish": 1, "bearish": -1, "sideways": 0}
+    trend_score = trend_map.get(market.get("trend", "sideways"), 0)
+    score += weights["trend"] * trend_score
+
+    # Risk bonus (low risk = positive)
+    risk_map = {"low": 1, "medium": 0, "high": -1}
+    risk_score = risk_map.get(risk.get("level", "medium"), 0)
+    score += weights["risk"] * risk_score
+
+    # --- Map composite score to decision ---
+    if score > 0.15:
+        decision = "BUY"
+    elif score < -0.15:
+        decision = "SELL"
+    else:
+        decision = "HOLD"
+
+    confidence = round(min(abs(score) / 0.5, 1.0), 2)
+
+    state["decision"] = decision
+    state["confidence"] = confidence
+    state["logs"].append(
+        f"[DecisionAgent] score={round(score, 4)} → {decision} (confidence={confidence})"
+    )
+    return state
