@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeGraphAI — Multi-Agent Stock Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>TradeGraphAI</h1>
+            <p class="subtitle">Multi-Agent Stock Analysis powered by LangGraph + FinBERT</p>
+        </div>
+    </header>
+
+    <main>
+        <!-- ── Stock Selector ─────────────────────────────── -->
+        <section class="card selector-card" id="selector-section">
+            <h2>Select Stocks to Analyze</h2>
+            <div class="stock-grid" id="stock-grid">
+                {% for stock in stocks %}
+                <button class="stock-btn" data-ticker="{{ stock.ticker }}" onclick="toggleStock(this)">
+                    <span class="ticker">{{ stock.ticker }}</span>
+                    <span class="name">{{ stock.name }}</span>
+                </button>
+                {% endfor %}
+            </div>
+
+            <div class="custom-ticker">
+                <input type="text" id="custom-input" placeholder="Or type a ticker (e.g. COIN)" 
+                       onkeydown="if(event.key==='Enter') addCustomTicker()">
+                <button onclick="addCustomTicker()" class="btn-secondary">Add</button>
+            </div>
+
+            <div class="selected-bar" id="selected-bar">
+                <span id="selected-count">0 selected</span>
+                <div id="selected-tags"></div>
+            </div>
+
+            <button class="btn-primary" id="analyze-btn" onclick="startAnalysis()" disabled>
+                Analyze Selected Stocks
+            </button>
+        </section>
+
+        <!-- ── Progress ───────────────────────────────────── -->
+        <section class="card progress-card hidden" id="progress-section">
+            <h2>Analysis in Progress</h2>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Starting agents...</p>
+            <div class="agent-log" id="agent-log"></div>
+        </section>
+
+        <!-- ── Results ────────────────────────────────────── -->
+        <section class="hidden" id="results-section">
+            <h2>Analysis Results</h2>
+
+            <!-- Portfolio Summary -->
+            <div class="card summary-card" id="summary-card">
+                <h3>Portfolio Summary</h3>
+                <div class="summary-grid" id="summary-grid"></div>
+            </div>
+
+            <!-- Individual Result Cards -->
+            <div class="results-grid" id="results-grid"></div>
+        </section>
+    </main>
+
+    <footer>
+        <p>For educational and research purposes only. Not financial advice.</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
