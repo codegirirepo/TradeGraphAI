@@ -15,6 +15,7 @@ from queue import Queue
 from flask import Flask, render_template, request, jsonify, Response
 
 from main import run_analysis
+from tools.storage import save_job, complete_job, save_result, get_history
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,20 +86,22 @@ def _run_job(job_id: str, tickers: list[str]):
 
         try:
             result = run_analysis(ticker)
-            # Strip non-serializable history from result
             if "details" not in result:
                 result["details"] = {}
             job["results"].append(result)
+            save_result(job_id, result)
             _send_event(job_id, "result", result)
         except Exception as e:
             logger.error(f"Analysis failed for {ticker}: {e}")
             err = {"ticker": ticker, "decision": "ERROR", "error": str(e),
                    "confidence": 0, "risk_level": "unknown", "summary": f"Analysis failed: {e}"}
             job["results"].append(err)
+            save_result(job_id, err)
             _send_event(job_id, "result", err)
 
     job["status"] = "completed"
     job["completed_at"] = datetime.now().isoformat()
+    complete_job(job_id)
     _send_event(job_id, "done", {"message": "All analyses complete", "total": total})
 
 
@@ -133,6 +136,7 @@ def analyze():
         "started_at": datetime.now().isoformat(),
     }
     _event_queues[job_id] = []
+    save_job(job_id, tickers)
 
     thread = threading.Thread(target=_run_job, args=(job_id, tickers), daemon=True)
     thread.start()
@@ -172,6 +176,13 @@ def get_job(job_id):
     if not job:
         return jsonify({"error": "Job not found"}), 404
     return jsonify(job)
+
+
+@app.route("/api/history")
+def history():
+    """Return recent analysis history from SQLite."""
+    limit = request.args.get("limit", 50, type=int)
+    return jsonify(get_history(limit))
 
 
 if __name__ == "__main__":
