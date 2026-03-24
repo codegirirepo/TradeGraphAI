@@ -11,15 +11,21 @@ A production-ready multi-agent stock market analysis system built with **LangGra
 
 - **7 specialized AI agents** orchestrated via LangGraph StateGraph
 - **Web dashboard** with real-time SSE streaming of agent progress
-- **FinBERT sentiment analysis** on financial news headlines
+- **Interactive price charts** with SMA-20/50 overlays (Chart.js)
+- **FinBERT sentiment analysis** on financial news headlines with per-headline breakdown
 - **Sector-aware decision weights** (10 sector profiles)
 - **Portfolio-level risk analysis** with correlation matrix and concentration warnings
+- **Side-by-side stock comparison** table across all metrics
+- **Watchlist** with localStorage persistence
+- **Dark / Light theme** toggle
+- **PDF report generation** with professional formatting
+- **CSV export** of analysis history
 - **Configurable via config.yaml** — all thresholds, weights, and parameters in one place
 - **TTL-based caching** (diskcache) to avoid redundant API calls
 - **SQLite persistence** for analysis history
-- **CSV export** of results
 - **Rate limiting** to prevent abuse
 - **Ticker validation** before analysis
+- **Per-agent pipeline visualization** with timing
 
 ## Architecture
 
@@ -172,13 +178,19 @@ python app.py
 ## Web Dashboard
 
 The web UI provides:
+- **Glassmorphism sidebar layout** with tab-based navigation
 - **Stock selector** with 25 popular tickers + custom input
 - **Portfolio value input** for personalized position sizing
-- **Real-time progress** via Server-Sent Events as each agent completes
-- **Result cards** with metrics, confidence bars, and summaries
+- **Real-time pipeline visualization** showing which agent is running with timing
+- **Interactive price charts** with SMA-20/50 overlays per stock (Chart.js)
+- **Result cards** with metrics, confidence bars, sentiment breakdown, and summaries
+- **Side-by-side comparison table** across all analyzed stocks
+- **Watchlist** — save favorite tickers (persisted in browser localStorage)
 - **Portfolio risk warnings** (correlation, sector concentration)
-- **Analysis history** page at `/history`
+- **Dark / Light theme toggle** (persisted in localStorage)
+- **PDF report export** — professional multi-page report per job
 - **CSV export** at `/api/export/csv`
+- **Analysis history** page at `/history`
 
 ## Configuration
 
@@ -257,6 +269,8 @@ cache:
 | Technical Indicators | ta (Technical Analysis library) |
 | Sentiment Model | FinBERT (ProsusAI/finbert) via HuggingFace Transformers |
 | Data Processing | pandas, numpy |
+| Charts | Chart.js |
+| PDF Reports | fpdf2 |
 | Caching | diskcache (TTL-based) |
 | Storage | SQLite |
 | Rate Limiting | Flask-Limiter |
@@ -273,6 +287,7 @@ cache:
 | `/api/job/<job_id>` | GET | Poll job status |
 | `/api/history` | GET | JSON history data |
 | `/api/export/csv` | GET | Download history as CSV |
+| `/api/export/pdf/<job_id>` | GET | Download PDF report for a job |
 
 ## Programmatic Usage
 
