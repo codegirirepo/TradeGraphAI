@@ -1,17 +1,24 @@
 """Data fetching utilities — yfinance, news APIs, Alpha Vantage.
 
-All functions include retry logic and graceful failure handling.
+All functions include retry logic, graceful failure handling, and TTL caching.
 """
 
 import os, time, logging
 from datetime import datetime, timedelta
 from functools import wraps
+from pathlib import Path
 
 import yfinance as yf
 import requests
 import pandas as pd
+import diskcache
 
 logger = logging.getLogger(__name__)
+
+# TTL-based disk cache (15 min default)
+_CACHE_DIR = Path(__file__).resolve().parent.parent / ".cache" / "data"
+_cache = diskcache.Cache(str(_CACHE_DIR))
+CACHE_TTL = int(os.getenv("CACHE_TTL", 900))  # seconds
 
 # ---------------------------------------------------------------------------
 # Retry decorator
@@ -41,12 +48,18 @@ def retry(max_retries: int = 3, delay: float = 1.0):
 @retry()
 def fetch_stock_data(ticker: str, period: str = "6mo") -> dict:
     """Return OHLCV history + basic info for *ticker*."""
+    cache_key = f"stock_data:{ticker}:{period}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache HIT for {ticker} stock data")
+        return cached
+
     stock = yf.Ticker(ticker)
     hist = stock.history(period=period)
     if hist.empty:
         raise ValueError(f"No data returned for {ticker}")
     info = stock.info or {}
-    return {
+    result = {
         "history": hist,
         "current_price": float(hist["Close"].iloc[-1]),
         "currency": info.get("currency", "USD"),
@@ -54,6 +67,8 @@ def fetch_stock_data(ticker: str, period: str = "6mo") -> dict:
         "sector": info.get("sector", "Unknown"),
         "industry": info.get("industry", "Unknown"),
     }
+    _cache.set(cache_key, result, expire=CACHE_TTL)
+    return result
 
 # ---------------------------------------------------------------------------
 # Fundamental data — yfinance first, Alpha Vantage as fallback
@@ -62,6 +77,12 @@ def fetch_stock_data(ticker: str, period: str = "6mo") -> dict:
 @retry()
 def fetch_fundamentals_av(ticker: str) -> dict:
     """Pull fundamental metrics. Uses yfinance; falls back to Alpha Vantage."""
+    cache_key = f"fundamentals:{ticker}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache HIT for {ticker} fundamentals")
+        return cached
+
     stock = yf.Ticker(ticker)
     info = stock.info or {}
 
@@ -99,6 +120,7 @@ def fetch_fundamentals_av(ticker: str) -> dict:
         except Exception as e:
             logger.warning(f"Alpha Vantage fallback failed: {e}")
 
+    _cache.set(cache_key, fundamentals, expire=CACHE_TTL)
     return fundamentals
 
 
@@ -115,12 +137,22 @@ def _safe_float(val):
 @retry()
 def fetch_news_headlines(ticker: str, max_articles: int = 20) -> list[dict]:
     """Return list of {title, source, url, published} dicts."""
+    cache_key = f"news:{ticker}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        logger.info(f"Cache HIT for {ticker} news")
+        return cached
+
     headlines = _try_finnhub(ticker, max_articles)
     if not headlines:
         headlines = _try_newsapi(ticker, max_articles)
     if not headlines:
         headlines = _try_yfinance_news(ticker, max_articles)
-    return headlines or []
+
+    result = headlines or []
+    if result:
+        _cache.set(cache_key, result, expire=CACHE_TTL)
+    return result
 
 
 def _try_finnhub(ticker: str, limit: int) -> list[dict] | None:
