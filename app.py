@@ -14,6 +14,8 @@ from queue import Queue
 
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify, Response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 from main import run_analysis
 from tools.storage import save_job, complete_job, save_result, get_history
@@ -26,6 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app, default_limits=["60 per minute"])
 
 # In-memory job store: job_id -> {status, results, logs, progress}
 _jobs: dict[str, dict] = {}
@@ -114,6 +117,7 @@ def index():
 
 
 @app.route("/api/analyze", methods=["POST"])
+@limiter.limit("5 per minute")
 def analyze():
     """Start an analysis job. Expects JSON: {"tickers": ["AAPL", "MSFT"]}"""
     data = request.get_json(force=True)
