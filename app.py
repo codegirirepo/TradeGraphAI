@@ -8,10 +8,11 @@ Usage:
     Open http://localhost:5000
 """
 
-import json, logging, uuid, threading, time
+import json, logging, uuid, threading, time, re
 from datetime import datetime
 from queue import Queue
 
+import yfinance as yf
 from flask import Flask, render_template, request, jsonify, Response
 
 from main import run_analysis
@@ -125,6 +126,23 @@ def analyze():
 
     # Clean input
     tickers = [t.upper().strip() for t in tickers if t.strip()]
+
+    # Validate ticker format
+    invalid = [t for t in tickers if not re.match(r'^[A-Z]{1,5}$', t)]
+    if invalid:
+        return jsonify({"error": f"Invalid ticker(s): {', '.join(invalid)}"}), 400
+
+    # Validate tickers exist on yfinance
+    bad = []
+    for t in tickers:
+        try:
+            info = yf.Ticker(t).info
+            if not info or info.get("regularMarketPrice") is None:
+                bad.append(t)
+        except Exception:
+            bad.append(t)
+    if bad:
+        return jsonify({"error": f"Ticker(s) not found: {', '.join(bad)}"}), 400
 
     job_id = str(uuid.uuid4())[:8]
     _jobs[job_id] = {
