@@ -1,0 +1,32 @@
+# TradeGraphAI Configuration
+# All tunable parameters in one place
+
+portfolio:
+  default_value: 100000        # Default portfolio size ($)
+  risk_per_trade_pct: 0.01     # Risk 1% of portfolio per trade
+
+cache:
+  ttl_seconds: 900             # 15 minutes
+
+decision:
+  buy_threshold: 0.15          # Score above this -> BUY
+  sell_threshold: -0.15        # Score below this -> SELL
+  confidence_divisor: 0.5      # Normalise confidence
+
+risk:
+  high_volatility: 0.50        # Annual vol above this -> high risk
+  medium_volatility: 0.30      # Annual vol above this -> medium risk
+  high_drawdown: -0.30         # Max drawdown below this -> high risk
+  medium_drawdown: -0.15       # Max drawdown below this -> medium risk
+  stop_loss_multiplier: 2      # Stop-loss = price * (1 - N * daily_vol)
+
+sentiment:
+  bullish_threshold: 0.15      # Avg score above this -> bullish
+  bearish_threshold: -0.15     # Avg score below this -> bearish
+  max_retries: 2               # Retry fetching headlines
+
+server:
+  port: 5000
+  rate_limit_global: "60 per minute"
+  rate_limit_analyze: "5 per minute"
+  max_tickers_per_request: 10

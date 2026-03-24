@@ -2,10 +2,11 @@
 
 import logging
 import numpy as np
+import config
 
 logger = logging.getLogger(__name__)
 
-PORTFOLIO_VALUE = 100_000  # default notional portfolio
+PORTFOLIO_VALUE = config.get("portfolio", "default_value", 100_000)
 
 
 def risk_management_agent(state: dict) -> dict:
@@ -35,19 +36,25 @@ def risk_management_agent(state: dict) -> dict:
     var_95 = round(float(np.percentile(returns, 5)), 4)
 
     # Risk level classification
-    if annual_vol > 0.50 or max_dd < -0.30:
+    high_vol = config.get("risk", "high_volatility", 0.50)
+    med_vol = config.get("risk", "medium_volatility", 0.30)
+    high_dd = config.get("risk", "high_drawdown", -0.30)
+    med_dd = config.get("risk", "medium_drawdown", -0.15)
+
+    if annual_vol > high_vol or max_dd < high_dd:
         level = "high"
-    elif annual_vol > 0.30 or max_dd < -0.15:
+    elif annual_vol > med_vol or max_dd < med_dd:
         level = "medium"
     else:
         level = "low"
 
     current = float(closes[-1])
     # Stop-loss: 2× daily vol below current price
-    stop_loss = round(current * (1 - 2 * daily_vol), 2)
-    # Position size: risk 1 % of portfolio per trade
+    stop_loss_mult = config.get("risk", "stop_loss_multiplier", 2)
+    stop_loss = round(current * (1 - stop_loss_mult * daily_vol), 2)
+    risk_pct = config.get("portfolio", "risk_per_trade_pct", 0.01)
     risk_per_share = current - stop_loss
-    position_size = int(portfolio_value * 0.01 / max(risk_per_share, 0.01))
+    position_size = int(portfolio_value * risk_pct / max(risk_per_share, 0.01))
 
     state["risk"] = {
         "level": level,

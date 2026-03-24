@@ -3,18 +3,18 @@
 import logging
 from tools.data_fetcher import fetch_news_headlines
 from tools.sentiment_scorer import score_sentiment
+import config
 
 logger = logging.getLogger(__name__)
-
-_MAX_RETRIES = 2
 
 
 def sentiment_analysis_agent(state: dict) -> dict:
     ticker = state["ticker"]
     logger.info(f"[SentimentAgent] Analysing sentiment for {ticker}")
+    max_retries = config.get("sentiment", "max_retries", 2)
 
     headlines = None
-    for attempt in range(1, _MAX_RETRIES + 1):
+    for attempt in range(1, max_retries + 1):
         headlines = fetch_news_headlines(ticker)
         if headlines:
             break

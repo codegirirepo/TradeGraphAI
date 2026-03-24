@@ -2,6 +2,7 @@
 
 import logging
 from transformers import pipeline
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,9 @@ def score_sentiment(headlines: list[dict]) -> dict:
         details.append({"title": title, "label": best["label"], "score": round(best["score"], 3)})
 
     avg = total_score / len(titles)
-    label = "bullish" if avg > 0.15 else ("bearish" if avg < -0.15 else "neutral")
+    bull = config.get("sentiment", "bullish_threshold", 0.15)
+    bear = config.get("sentiment", "bearish_threshold", -0.15)
+    label = "bullish" if avg > bull else ("bearish" if avg < bear else "neutral")
 
     return {
         "score": round(avg, 4),

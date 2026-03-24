@@ -5,6 +5,7 @@ while defensive sectors weight fundamentals/dividends more.
 """
 
 import logging
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -70,15 +71,18 @@ def decision_agent(state: dict) -> dict:
     risk_score = risk_map.get(risk.get("level", "medium"), 0)
     score += weights["risk"] * risk_score
 
-    # --- Map composite score to decision ---
-    if score > 0.15:
+    buy_thresh = config.get("decision", "buy_threshold", 0.15)
+    sell_thresh = config.get("decision", "sell_threshold", -0.15)
+    conf_div = config.get("decision", "confidence_divisor", 0.5)
+
+    if score > buy_thresh:
         decision = "BUY"
-    elif score < -0.15:
+    elif score < sell_thresh:
         decision = "SELL"
     else:
         decision = "HOLD"
 
-    confidence = round(min(abs(score) / 0.5, 1.0), 2)
+    confidence = round(min(abs(score) / conf_div, 1.0), 2)
 
     state["decision"] = decision
     state["confidence"] = confidence
