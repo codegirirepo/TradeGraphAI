@@ -73,7 +73,7 @@ async function startAnalysis() {
         const resp = await fetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ tickers }),
+            body: JSON.stringify({ tickers, portfolio_value: getPortfolioValue() }),
         });
         const data = await resp.json();
         if (data.error) { alert(data.error); return; }
@@ -199,4 +199,9 @@ function metric(label, value, cls = "") {
 
 function num(v) {
     return typeof v === "number" ? v.toFixed(2) : v;
+}
+
+function getPortfolioValue() {
+    const val = parseInt(document.getElementById("portfolio-value").value);
+    return isNaN(val) || val < 1000 ? 100000 : val;
 }

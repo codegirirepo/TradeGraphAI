@@ -74,7 +74,7 @@ def _send_event(job_id: str, event: str, data: dict):
         q.put(f"event: {event}\ndata: {msg}\n\n")
 
 
-def _run_job(job_id: str, tickers: list[str]):
+def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
     """Background worker — runs analysis for each ticker sequentially."""
     job = _jobs[job_id]
     total = len(tickers)
@@ -89,7 +89,7 @@ def _run_job(job_id: str, tickers: list[str]):
         })
 
         try:
-            result = run_analysis(ticker)
+            result = run_analysis(ticker, portfolio_value=portfolio_value)
             if "details" not in result:
                 result["details"] = {}
             job["results"].append(result)
@@ -122,6 +122,7 @@ def analyze():
     """Start an analysis job. Expects JSON: {"tickers": ["AAPL", "MSFT"]}"""
     data = request.get_json(force=True)
     tickers = data.get("tickers", [])
+    portfolio_value = data.get("portfolio_value", 100_000)
 
     if not tickers:
         return jsonify({"error": "No tickers provided"}), 400
@@ -160,7 +161,7 @@ def analyze():
     _event_queues[job_id] = []
     save_job(job_id, tickers)
 
-    thread = threading.Thread(target=_run_job, args=(job_id, tickers), daemon=True)
+    thread = threading.Thread(target=_run_job, args=(job_id, tickers, portfolio_value), daemon=True)
     thread.start()
 
     return jsonify({"job_id": job_id, "tickers": tickers, "status": "running"})

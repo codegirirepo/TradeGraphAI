@@ -33,8 +33,12 @@ _graph = build_graph()
 # Core execution function
 # ---------------------------------------------------------------------------
 
-def run_analysis(ticker: str) -> dict:
+def run_analysis(ticker: str, portfolio_value: float = 100_000) -> dict:
     """Run the full multi-agent analysis pipeline for a single ticker.
+
+    Args:
+        ticker: Stock symbol (e.g. "AAPL")
+        portfolio_value: Total portfolio size for position sizing
 
     Returns a JSON-serialisable result dict.
     """
@@ -53,6 +57,7 @@ def run_analysis(ticker: str) -> dict:
         "decision": "",
         "confidence": 0.0,
         "logs": [],
+        "portfolio_value": portfolio_value,
     }
 
     # Execute the LangGraph pipeline

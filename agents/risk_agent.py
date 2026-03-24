@@ -10,7 +10,8 @@ PORTFOLIO_VALUE = 100_000  # default notional portfolio
 
 def risk_management_agent(state: dict) -> dict:
     ticker = state["ticker"]
-    logger.info(f"[RiskAgent] Evaluating risk for {ticker}")
+    portfolio_value = state.get("portfolio_value", PORTFOLIO_VALUE)
+    logger.info(f"[RiskAgent] Evaluating risk for {ticker} (portfolio=${portfolio_value:,})")
 
     hist = state.get("market_data", {}).get("history")
     if hist is None or (hasattr(hist, "empty") and hist.empty):
@@ -46,7 +47,7 @@ def risk_management_agent(state: dict) -> dict:
     stop_loss = round(current * (1 - 2 * daily_vol), 2)
     # Position size: risk 1 % of portfolio per trade
     risk_per_share = current - stop_loss
-    position_size = int(PORTFOLIO_VALUE * 0.01 / max(risk_per_share, 0.01))
+    position_size = int(portfolio_value * 0.01 / max(risk_per_share, 0.01))
 
     state["risk"] = {
         "level": level,
@@ -56,7 +57,7 @@ def risk_management_agent(state: dict) -> dict:
         "var_95": var_95,
         "stop_loss": stop_loss,
         "position_size": position_size,
-        "portfolio_value": PORTFOLIO_VALUE,
+        "portfolio_value": portfolio_value,
     }
     state["logs"].append(f"[RiskAgent] vol={annual_vol}, dd={max_dd}, level={level}, stop={stop_loss}")
     return state
