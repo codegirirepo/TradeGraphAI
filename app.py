@@ -12,10 +12,12 @@ import json, logging, uuid, threading, time, re, csv, io
 from datetime import datetime
 from queue import Queue
 
+import numpy as np
 import yfinance as yf
 from flask import Flask, render_template, request, jsonify, Response
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from fpdf import FPDF
 
 from main import run_analysis, run_analysis_raw
 from tools.storage import save_job, complete_job, save_result, get_history
@@ -91,9 +93,29 @@ def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
         })
 
         try:
+            t_start = time.time()
             result, state = run_analysis_raw(ticker, portfolio_value=portfolio_value)
+            elapsed = round(time.time() - t_start, 1)
             if "details" not in result:
                 result["details"] = {}
+
+            # Attach chart data (price history as serializable lists)
+            hist = state.get("market_data", {}).get("history")
+            if hist is not None and not hist.empty:
+                result["chart_data"] = {
+                    "dates": [d.strftime("%Y-%m-%d") for d in hist.index],
+                    "close": [round(float(v), 2) for v in hist["Close"].values],
+                    "volume": [int(v) for v in hist["Volume"].values],
+                    "sma_20": _sma(hist["Close"].values, 20),
+                    "sma_50": _sma(hist["Close"].values, 50),
+                }
+
+            # Attach sentiment details
+            sent = state.get("sentiment", {})
+            if sent.get("details"):
+                result["sentiment_details"] = sent["details"]
+
+            result["elapsed_seconds"] = elapsed
             job["results"].append(result)
             raw_states.append({
                 "ticker": ticker,
@@ -123,6 +145,15 @@ def _run_job(job_id: str, tickers: list[str], portfolio_value: float = 100_000):
         "message": "All analyses complete", "total": total,
         "portfolio_risk": portfolio_risk,
     })
+
+
+def _sma(data, window):
+    """Compute SMA and return as list with None padding."""
+    if len(data) < window:
+        return [None] * len(data)
+    sma = np.convolve(data, np.ones(window) / window, mode="valid")
+    pad = [None] * (window - 1)
+    return pad + [round(float(v), 2) for v in sma]
 
 
 # ── Routes ───────────────────────────────────────────────────────────────
@@ -240,6 +271,90 @@ def export_csv():
         output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment; filename=tradegraph_history.csv"},
+    )
+
+
+@app.route("/api/export/pdf/<job_id>")
+def export_pdf(job_id):
+    """Generate a professional PDF report for a completed job."""
+    job = _jobs.get(job_id)
+    if not job or job["status"] != "completed":
+        return jsonify({"error": "Job not found or not completed"}), 404
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Title
+    pdf.set_font("Helvetica", "B", 20)
+    pdf.cell(0, 12, "TradeGraphAI Analysis Report", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(120, 120, 120)
+    pdf.cell(0, 6, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}  |  Tickers: {', '.join(job['tickers'])}",
+             new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(8)
+
+    # Summary table
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.cell(0, 8, "Portfolio Summary", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "B", 9)
+    col_w = [25, 25, 25, 25, 85]
+    headers = ["Ticker", "Decision", "Confidence", "Risk", "Summary"]
+    for i, h in enumerate(headers):
+        pdf.cell(col_w[i], 7, h, border=1)
+    pdf.ln()
+
+    pdf.set_font("Helvetica", "", 8)
+    for r in job["results"]:
+        conf = f"{round(r.get('confidence', 0) * 100)}%"
+        summary = (r.get("summary", "") or "")[:80]
+        pdf.cell(col_w[0], 6, r.get("ticker", ""), border=1)
+        pdf.cell(col_w[1], 6, r.get("decision", ""), border=1)
+        pdf.cell(col_w[2], 6, conf, border=1)
+        pdf.cell(col_w[3], 6, r.get("risk_level", ""), border=1)
+        pdf.cell(col_w[4], 6, summary, border=1)
+        pdf.ln()
+
+    # Detail sections
+    for r in job["results"]:
+        pdf.add_page()
+        pdf.set_font("Helvetica", "B", 14)
+        pdf.cell(0, 10, f"{r.get('ticker', '?')} - {r.get('name', '')}", new_x="LMARGIN", new_y="NEXT")
+
+        d = r.get("details", {})
+        pdf.set_font("Helvetica", "", 9)
+        metrics = [
+            ("Decision", r.get("decision")), ("Confidence", f"{round(r.get('confidence', 0) * 100)}%"),
+            ("Price", f"${d.get('price', 0):.2f}" if d.get('price') else "N/A"),
+            ("Trend", d.get("trend")), ("RSI", d.get("rsi")),
+            ("MACD", d.get("macd_direction")), ("Technical", d.get("technical_signal")),
+            ("Fundamental", d.get("fundamental_rating")), ("P/E", d.get("pe_ratio")),
+            ("Sentiment", d.get("sentiment_label")), ("Volatility", d.get("volatility")),
+            ("Risk", r.get("risk_level")), ("Stop-Loss", f"${d.get('stop_loss')}" if d.get('stop_loss') else "N/A"),
+            ("Position Size", f"{d.get('position_size')} shares" if d.get('position_size') else "N/A"),
+        ]
+        for label, val in metrics:
+            pdf.cell(45, 6, f"{label}:", border=0)
+            pdf.cell(0, 6, str(val or "N/A"), new_x="LMARGIN", new_y="NEXT")
+
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.multi_cell(0, 5, r.get("summary", ""))
+
+    # Footer
+    pdf.set_font("Helvetica", "I", 7)
+    pdf.set_text_color(150, 150, 150)
+    pdf.cell(0, 10, "Disclaimer: For educational purposes only. Not financial advice.",
+             new_x="LMARGIN", new_y="NEXT")
+
+    buf = io.BytesIO()
+    pdf.output(buf)
+    buf.seek(0)
+    return Response(
+        buf.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=TradeGraphAI_Report_{job_id}.pdf"},
     )
 
 
