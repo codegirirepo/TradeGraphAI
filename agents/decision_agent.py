@@ -1,8 +1,27 @@
-"""Decision Agent — combines all agent signals into a final BUY / SELL / HOLD."""
+"""Decision Agent — combines all agent signals into a final BUY / SELL / HOLD.
+
+Uses sector-aware weight profiles so tech stocks weight technicals higher
+while defensive sectors weight fundamentals/dividends more.
+"""
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Sector-specific weight profiles
+SECTOR_WEIGHTS = {
+    "Technology": {"technical": 0.35, "fundamental": 0.20, "sentiment": 0.25, "trend": 0.10, "risk": 0.10},
+    "Communication Services": {"technical": 0.35, "fundamental": 0.20, "sentiment": 0.25, "trend": 0.10, "risk": 0.10},
+    "Consumer Cyclical": {"technical": 0.30, "fundamental": 0.20, "sentiment": 0.25, "trend": 0.15, "risk": 0.10},
+    "Financial Services": {"technical": 0.25, "fundamental": 0.35, "sentiment": 0.15, "trend": 0.10, "risk": 0.15},
+    "Healthcare": {"technical": 0.25, "fundamental": 0.30, "sentiment": 0.20, "trend": 0.10, "risk": 0.15},
+    "Utilities": {"technical": 0.15, "fundamental": 0.40, "sentiment": 0.10, "trend": 0.10, "risk": 0.25},
+    "Consumer Defensive": {"technical": 0.20, "fundamental": 0.35, "sentiment": 0.15, "trend": 0.10, "risk": 0.20},
+    "Energy": {"technical": 0.25, "fundamental": 0.25, "sentiment": 0.20, "trend": 0.15, "risk": 0.15},
+    "Industrials": {"technical": 0.25, "fundamental": 0.30, "sentiment": 0.15, "trend": 0.15, "risk": 0.15},
+    "Real Estate": {"technical": 0.20, "fundamental": 0.35, "sentiment": 0.10, "trend": 0.15, "risk": 0.20},
+}
+DEFAULT_WEIGHTS = {"technical": 0.30, "fundamental": 0.25, "sentiment": 0.20, "trend": 0.15, "risk": 0.10}
 
 
 def decision_agent(state: dict) -> dict:
@@ -22,15 +41,18 @@ def decision_agent(state: dict) -> dict:
         state["logs"].append("[DecisionAgent] HOLD — risk too high")
         return state
 
+    # --- Select sector-aware weights ---
+    sector = market.get("sector", "Unknown")
+    weights = SECTOR_WEIGHTS.get(sector, DEFAULT_WEIGHTS)
+
     # --- Weighted scoring system ---
     score = 0.0
-    weights = {"technical": 0.30, "fundamental": 0.25, "sentiment": 0.20, "trend": 0.15, "risk": 0.10}
 
-    # Technical score (-3 to +3 → normalise to -1..+1)
+    # Technical score (-3 to +3 -> normalise to -1..+1)
     tech_score = technicals.get("signal_score", 0) / 3
     score += weights["technical"] * tech_score
 
-    # Fundamental score (-4 to +4 → normalise)
+    # Fundamental score (-4 to +4 -> normalise)
     fund_score = fundamentals.get("net_score", 0) / 4
     score += weights["fundamental"] * fund_score
 
@@ -61,6 +83,6 @@ def decision_agent(state: dict) -> dict:
     state["decision"] = decision
     state["confidence"] = confidence
     state["logs"].append(
-        f"[DecisionAgent] score={round(score, 4)} → {decision} (confidence={confidence})"
+        f"[DecisionAgent] sector={sector}, weights={weights}, score={round(score, 4)} -> {decision} (confidence={confidence})"
     )
     return state
