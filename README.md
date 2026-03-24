@@ -4,7 +4,22 @@ A production-ready multi-agent stock market analysis system built with **LangGra
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![LangGraph](https://img.shields.io/badge/LangGraph-Stateful%20Orchestration-green)
+![Flask](https://img.shields.io/badge/Flask-Web%20Dashboard-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+
+## Features
+
+- **7 specialized AI agents** orchestrated via LangGraph StateGraph
+- **Web dashboard** with real-time SSE streaming of agent progress
+- **FinBERT sentiment analysis** on financial news headlines
+- **Sector-aware decision weights** (10 sector profiles)
+- **Portfolio-level risk analysis** with correlation matrix and concentration warnings
+- **Configurable via config.yaml** — all thresholds, weights, and parameters in one place
+- **TTL-based caching** (diskcache) to avoid redundant API calls
+- **SQLite persistence** for analysis history
+- **CSV export** of results
+- **Rate limiting** to prevent abuse
+- **Ticker validation** before analysis
 
 ## Architecture
 
@@ -64,9 +79,9 @@ A production-ready multi-agent stock market analysis system built with **LangGra
 | **Fundamental Analysis** | Evaluates P/E, margins, revenue growth, debt-to-equity | yfinance, Alpha Vantage |
 | **Sentiment Analysis** | Scores news headlines using FinBERT NLP model | Finnhub, NewsAPI, yfinance news |
 | **Risk Management** | Calculates volatility, VaR, max drawdown, stop-loss, position sizing | Computed from price data |
-| **Decision** | Combines all signals with weighted scoring into final verdict | All agent outputs |
+| **Decision** | Combines all signals with sector-aware weighted scoring | All agent outputs |
 
-### Decision Weights
+### Decision Weights (Default)
 
 | Signal | Weight |
 |--------|--------|
@@ -75,6 +90,8 @@ A production-ready multi-agent stock market analysis system built with **LangGra
 | Sentiment | 20% |
 | Trend | 15% |
 | Risk | 10% |
+
+Weights are automatically adjusted per sector (e.g. Technology weights technicals higher, Utilities weights fundamentals higher). See `config.yaml` and `agents/decision_agent.py` for all 10 sector profiles.
 
 ## Project Structure
 
@@ -86,15 +103,26 @@ TradeGraphAI/
 │   ├── fundamental_agent.py    # Valuation & profitability scoring
 │   ├── sentiment_agent.py      # News sentiment via FinBERT
 │   ├── risk_agent.py           # Volatility, stop-loss, position sizing
-│   └── decision_agent.py       # Weighted signal -> BUY/SELL/HOLD
+│   └── decision_agent.py       # Sector-aware weighted signal -> BUY/SELL/HOLD
 ├── tools/
-│   ├── data_fetcher.py         # yfinance + API integrations with retry logic
+│   ├── data_fetcher.py         # yfinance + API integrations with retry + caching
 │   ├── indicators.py           # Technical indicator computation (ta library)
-│   └── sentiment_scorer.py     # FinBERT pipeline (ProsusAI/finbert)
+│   ├── sentiment_scorer.py     # FinBERT pipeline (ProsusAI/finbert)
+│   ├── storage.py              # SQLite persistence for jobs & results
+│   └── portfolio.py            # Portfolio correlation & concentration analysis
 ├── graph/
 │   ├── state.py                # GraphState TypedDict
 │   └── builder.py              # LangGraph StateGraph with conditional edges
+├── templates/
+│   ├── index.html              # Main dashboard
+│   └── history.html            # Analysis history page
+├── static/
+│   ├── css/style.css           # Dark-themed responsive styles
+│   └── js/app.js               # Frontend logic + SSE streaming
+├── app.py                      # Flask web server
 ├── main.py                     # CLI entry point + run_analysis()
+├── config.py                   # Config loader
+├── config.yaml                 # All tunable parameters
 ├── requirements.txt
 ├── .env.example                # Optional API keys template
 └── .gitignore
@@ -124,7 +152,7 @@ Edit `.env` to add keys for enhanced data coverage. **The system works fully wit
 | `NEWSAPI_KEY` | [newsapi.org](https://newsapi.org/) | Additional news sources |
 | `ALPHA_VANTAGE_API_KEY` | [alphavantage.co](https://www.alphavantage.co/) | Fallback fundamentals |
 
-### 3. Run
+### 3. Run (CLI)
 
 ```bash
 # Single stock
@@ -132,6 +160,50 @@ python main.py AAPL
 
 # Multiple stocks (portfolio scan)
 python main.py AAPL MSFT TSLA NVDA GOOGL
+```
+
+### 4. Run (Web Dashboard)
+
+```bash
+python app.py
+# Open http://localhost:5000
+```
+
+## Web Dashboard
+
+The web UI provides:
+- **Stock selector** with 25 popular tickers + custom input
+- **Portfolio value input** for personalized position sizing
+- **Real-time progress** via Server-Sent Events as each agent completes
+- **Result cards** with metrics, confidence bars, and summaries
+- **Portfolio risk warnings** (correlation, sector concentration)
+- **Analysis history** page at `/history`
+- **CSV export** at `/api/export/csv`
+
+## Configuration
+
+All tunable parameters are in `config.yaml`:
+
+```yaml
+portfolio:
+  default_value: 100000
+  risk_per_trade_pct: 0.01
+
+decision:
+  buy_threshold: 0.15
+  sell_threshold: -0.15
+
+risk:
+  high_volatility: 0.50
+  medium_volatility: 0.30
+  stop_loss_multiplier: 2
+
+sentiment:
+  bullish_threshold: 0.15
+  max_retries: 2
+
+cache:
+  ttl_seconds: 900
 ```
 
 ## Example Output
@@ -180,28 +252,34 @@ python main.py AAPL MSFT TSLA NVDA GOOGL
 |-----------|-----------|
 | Orchestration | LangGraph StateGraph |
 | Framework | LangChain |
+| Web Server | Flask + SSE |
 | Stock Data | yfinance |
 | Technical Indicators | ta (Technical Analysis library) |
 | Sentiment Model | FinBERT (ProsusAI/finbert) via HuggingFace Transformers |
 | Data Processing | pandas, numpy |
+| Caching | diskcache (TTL-based) |
+| Storage | SQLite |
+| Rate Limiting | Flask-Limiter |
 | API Calls | requests with retry decorator |
 
-## How It Works
+## API Endpoints
 
-1. **Orchestrator** initializes the shared state with the target ticker
-2. **Market Research** pulls 6 months of OHLCV data from yfinance and detects the price trend
-3. **Technical Analysis** computes RSI, MACD, and SMA indicators, then derives an aggregate bullish/bearish signal
-4. **Fundamental Analysis** evaluates valuation (P/E), profitability (margins), growth (revenue), and leverage (debt-to-equity)
-5. **Sentiment Analysis** fetches news headlines and scores them using the FinBERT financial NLP model
-6. **Risk Management** calculates annualized volatility, Value-at-Risk (95%), max drawdown, stop-loss price, and position size
-7. **Decision Agent** combines all signals using weighted scoring to produce a final BUY / SELL / HOLD with confidence level
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Main dashboard |
+| `/history` | GET | Analysis history page |
+| `/api/analyze` | POST | Start analysis job (rate limited: 5/min) |
+| `/api/stream/<job_id>` | GET | SSE stream for real-time progress |
+| `/api/job/<job_id>` | GET | Poll job status |
+| `/api/history` | GET | JSON history data |
+| `/api/export/csv` | GET | Download history as CSV |
 
 ## Programmatic Usage
 
 ```python
 from main import run_analysis
 
-result = run_analysis("AAPL")
+result = run_analysis("AAPL", portfolio_value=50_000)
 print(result["decision"])     # "BUY", "SELL", or "HOLD"
 print(result["confidence"])   # 0.0 - 1.0
 print(result["risk_level"])   # "low", "medium", or "high"
