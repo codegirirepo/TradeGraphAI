@@ -30,3 +30,10 @@ server:
   rate_limit_global: "60 per minute"
   rate_limit_analyze: "5 per minute"
   max_tickers_per_request: 10
+
+execution:
+  enabled: false              # set true + add Alpaca keys to enable paper trading
+  mode: "paper"               # only "paper" supported
+  broker: "alpaca"
+  max_position_pct: 0.10      # max 10% of portfolio per stock
+  max_daily_trades: 5

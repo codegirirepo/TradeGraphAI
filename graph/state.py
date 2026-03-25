@@ -15,3 +15,4 @@ class GraphState(TypedDict, total=False):
     logs: list              # per-step audit trail
     _sentiment_retried: bool  # internal flag for retry routing
     portfolio_value: float      # user-configurable portfolio size
+    execution: dict              # broker execution result

@@ -19,6 +19,7 @@ from agents.fundamental_agent import fundamental_analysis_agent
 from agents.sentiment_agent import sentiment_analysis_agent
 from agents.risk_agent import risk_management_agent
 from agents.decision_agent import decision_agent
+from agents.execution_agent import execution_agent
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ def build_graph() -> StateGraph:
     g.add_node("sentiment", sentiment_analysis_agent)
     g.add_node("risk", risk_management_agent)
     g.add_node("decision", decision_agent)
+    g.add_node("execution", execution_agent)
 
     # Linear edges: orchestrator → market → parallel-ish analysis chain
     g.set_entry_point("orchestrator")
@@ -86,6 +88,7 @@ def build_graph() -> StateGraph:
         "decision": "decision",
     })
 
-    g.add_edge("decision", END)
+    g.add_edge("decision", "execution")
+    g.add_edge("execution", END)
 
     return g.compile()
