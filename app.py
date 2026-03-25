@@ -23,6 +23,7 @@ from main import run_analysis, run_analysis_raw
 from tools.storage import save_job, complete_job, save_result, get_history
 from tools.portfolio import analyze_portfolio_risk
 from tools.backtester import run_backtest
+from tools.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 
 logging.basicConfig(
     level=logging.INFO,
@@ -380,6 +381,31 @@ def backtest_api():
 @app.route("/backtest")
 def backtest_page():
     return render_template("backtest.html", stocks=STOCK_UNIVERSE)
+
+
+@app.route("/api/bot/start", methods=["POST"])
+def bot_start():
+    """Start the real-time bot. Expects JSON: {tickers, interval_minutes}"""
+    data = request.get_json(force=True)
+    tickers = [t.upper().strip() for t in data.get("tickers", []) if t.strip()]
+    interval = data.get("interval_minutes", 15)
+    if not tickers:
+        return jsonify({"error": "No tickers provided"}), 400
+    start_scheduler(tickers, interval_minutes=interval)
+    return jsonify({"status": "started", "tickers": tickers, "interval": interval})
+
+
+@app.route("/api/bot/stop", methods=["POST"])
+def bot_stop():
+    """Stop the real-time bot."""
+    stop_scheduler()
+    return jsonify({"status": "stopped"})
+
+
+@app.route("/api/bot/status")
+def bot_status():
+    """Return current bot status and signal history."""
+    return jsonify(get_scheduler_status())
 
 
 @app.route("/history")

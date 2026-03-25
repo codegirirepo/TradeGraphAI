@@ -16,3 +16,4 @@ fpdf2>=2.7.0
 chromadb>=1.0.0
 sentence-transformers>=3.0.0
 alpaca-trade-api>=3.0.0
+apscheduler>=3.10.0
