@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeGraphAI — Backtesting</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-brand"><span class="brand-icon">&#9670;</span><span class="brand-text">TradeGraphAI</span></div>
+        <ul class="nav-links">
+            <li><a href="/" class="nav-link"><span class="nav-icon">&#9881;</span> Analysis</a></li>
+            <li><a href="/backtest" class="nav-link active"><span class="nav-icon">&#9203;</span> Backtest</a></li>
+            <li><a href="/history" class="nav-link"><span class="nav-icon">&#128197;</span> History</a></li>
+        </ul>
+    </nav>
+
+    <div class="main-wrap">
+        <header class="topbar"><div></div><span class="badge" id="bt-status">Ready</span></header>
+        <main>
+            <div class="page-title"><h1>Backtesting Engine</h1><p>Validate strategy performance on historical data</p></div>
+
+            <div class="glass-card">
+                <h2>Configure Backtest</h2>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label>Ticker</label>
+                        <select id="bt-ticker">
+                            {% for s in stocks %}<option value="{{ s.ticker }}">{{ s.ticker }} — {{ s.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Lookback (trading days)</label>
+                        <input type="number" id="bt-days" value="120" min="30" max="500">
+                    </div>
+                    <div class="input-group">
+                        <label>Hold Period (days)</label>
+                        <input type="number" id="bt-hold" value="5" min="1" max="30">
+                    </div>
+                </div>
+                <button class="btn-primary" id="bt-run" onclick="runBacktest()">
+                    <span class="btn-icon">&#9654;</span> Run Backtest
+                </button>
+            </div>
+
+            <!-- Results -->
+            <div class="hidden" id="bt-results">
+                <!-- KPIs -->
+                <div class="glass-card">
+                    <h2>Performance Metrics</h2>
+                    <div class="kpi-row" id="bt-kpis"></div>
+                </div>
+
+                <!-- Equity Curve -->
+                <div class="glass-card">
+                    <h2>Equity Curve</h2>
+                    <div class="chart-container" style="height:300px"><canvas id="equity-chart"></canvas></div>
+                </div>
+
+                <!-- Trade Log -->
+                <div class="glass-card">
+                    <h2>Trade Log</h2>
+                    <div class="compare-table-wrap">
+                        <table class="compare-table" id="bt-trades">
+                            <thead><tr><th>Date</th><th>Signal</th><th>Entry</th><th>Exit</th><th>Return</th><th>Correct</th><th>Equity</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    let equityChart = null;
+
+    async function runBacktest() {
+        const ticker = document.getElementById("bt-ticker").value;
+        const days = parseInt(document.getElementById("bt-days").value) || 120;
+        const hold = parseInt(document.getElementById("bt-hold").value) || 5;
+
+        document.getElementById("bt-run").disabled = true;
+        document.getElementById("bt-status").textContent = "Running...";
+        document.getElementById("bt-status").className = "badge running";
+
+        try {
+            const resp = await fetch("/api/backtest", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({ticker, days_back: days, hold_days: hold}),
+            });
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+            renderResults(data);
+        } catch (e) {
+            alert("Backtest failed: " + e.message);
+        } finally {
+            document.getElementById("bt-run").disabled = false;
+            document.getElementById("bt-status").textContent = "Complete";
+            document.getElementById("bt-status").className = "badge";
+        }
+    }
+
+    function renderResults(d) {
+        document.getElementById("bt-results").classList.remove("hidden");
+
+        // KPIs
+        const kpis = document.getElementById("bt-kpis");
+        const wr = d.win_rate;
+        const wrColor = wr >= 55 ? "var(--buy)" : wr >= 45 ? "var(--hold)" : "var(--sell)";
+        const srColor = d.strategy_return_pct > d.buy_hold_return_pct ? "var(--buy)" : "var(--sell)";
+        kpis.innerHTML = `
+            <div class="kpi"><div class="kpi-value" style="color:${wrColor}">${wr}%</div><div class="kpi-label">Win Rate</div></div>
+            <div class="kpi"><div class="kpi-value">${d.sharpe_ratio}</div><div class="kpi-label">Sharpe Ratio</div></div>
+            <div class="kpi"><div class="kpi-value" style="color:${srColor}">${d.strategy_return_pct}%</div><div class="kpi-label">Strategy Return</div></div>
+            <div class="kpi"><div class="kpi-value">${d.buy_hold_return_pct}%</div><div class="kpi-label">Buy & Hold</div></div>
+            <div class="kpi"><div class="kpi-value" style="color:var(--sell)">${d.max_drawdown_pct}%</div><div class="kpi-label">Max Drawdown</div></div>
+            <div class="kpi"><div class="kpi-value">$${d.final_equity.toLocaleString()}</div><div class="kpi-label">Final Equity</div></div>
+            <div class="kpi"><div class="kpi-value">${d.total_trades}</div><div class="kpi-label">Total Trades</div></div>
+            <div class="kpi"><div class="kpi-value">${d.wins}/${d.total_trades}</div><div class="kpi-label">Wins/Total</div></div>
+        `;
+
+        // Equity chart
+        if (equityChart) equityChart.destroy();
+        const ctx = document.getElementById("equity-chart");
+        const isDark = document.documentElement.dataset.theme === "dark";
+        equityChart = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: d.equity_dates,
+                datasets: [{
+                    label: "Equity ($)", data: d.equity_curve,
+                    borderColor: "#7c6cf0", borderWidth: 2, pointRadius: 0,
+                    fill: true, backgroundColor: "rgba(124,108,240,0.08)", tension: 0.2,
+                }],
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: isDark ? "#6b7394" : "#6b7394" } } },
+                scales: {
+                    x: { ticks: { color: "#6b7394", maxTicksLimit: 10, font: {size:9} }, grid: { color: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)" } },
+                    y: { ticks: { color: "#6b7394", font: {size:9} }, grid: { color: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)" } },
+                },
+            },
+        });
+
+        // Trade log
+        const tbody = document.querySelector("#bt-trades tbody");
+        tbody.innerHTML = d.trades.map(t => {
+            const retColor = t.return_pct > 0 ? "var(--buy)" : t.return_pct < 0 ? "var(--sell)" : "";
+            const sigCls = t.signal === "BUY" ? "decision-BUY" : t.signal === "SELL" ? "decision-SELL" : "decision-HOLD";
+            return `<tr>
+                <td>${t.date}</td>
+                <td><span class="decision-badge ${sigCls}" style="font-size:0.75rem;padding:0.2rem 0.5rem">${t.signal}</span></td>
+                <td>$${t.entry_price}</td><td>$${t.exit_price}</td>
+                <td style="color:${retColor}">${t.return_pct}%</td>
+                <td>${t.correct ? "&#10003;" : "&#10007;"}</td>
+                <td>$${t.equity.toLocaleString()}</td>
+            </tr>`;
+        }).join("");
+    }
+    </script>
+    <style>
+        select { width:100%; padding:0.6rem 0.8rem; background:var(--bg2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:0.88rem; outline:none; }
+        select:focus { border-color:var(--accent); }
+    </style>
+</body>
+</html>

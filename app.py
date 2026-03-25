@@ -22,6 +22,7 @@ from fpdf import FPDF
 from main import run_analysis, run_analysis_raw
 from tools.storage import save_job, complete_job, save_result, get_history
 from tools.portfolio import analyze_portfolio_risk
+from tools.backtester import run_backtest
 
 logging.basicConfig(
     level=logging.INFO,
@@ -356,6 +357,29 @@ def export_pdf(job_id):
         mimetype="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=TradeGraphAI_Report_{job_id}.pdf"},
     )
+
+
+@app.route("/api/backtest", methods=["POST"])
+@limiter.limit("3 per minute")
+def backtest_api():
+    """Run a backtest. Expects JSON: {ticker, days_back, hold_days}"""
+    data = request.get_json(force=True)
+    ticker = data.get("ticker", "").upper().strip()
+    days_back = data.get("days_back", 120)
+    hold_days = data.get("hold_days", 5)
+    if not ticker:
+        return jsonify({"error": "No ticker provided"}), 400
+    try:
+        result = run_backtest(ticker, days_back=days_back, hold_days=hold_days)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Backtest failed: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/backtest")
+def backtest_page():
+    return render_template("backtest.html", stocks=STOCK_UNIVERSE)
 
 
 @app.route("/history")
