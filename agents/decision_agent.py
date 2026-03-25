@@ -6,6 +6,7 @@ while defensive sectors weight fundamentals/dividends more.
 
 import logging
 import config
+from tools.memory import query_similar
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +85,34 @@ def decision_agent(state: dict) -> dict:
 
     confidence = round(min(abs(score) / conf_div, 1.0), 2)
 
+    # --- Memory-based confidence adjustment ---
+    memory_note = ""
+    try:
+        similar = query_similar(ticker, {
+            "rsi": technicals.get("rsi"),
+            "trend": market.get("trend"),
+            "macd_direction": technicals.get("macd_direction"),
+            "technical_signal": technicals.get("overall_signal"),
+            "fundamental_rating": fundamentals.get("overall"),
+            "sentiment_label": sentiment.get("label"),
+            "risk_level": risk.get("level"),
+        })
+        tracked = [s for s in similar if s.get("outcome_tracked")]
+        if tracked:
+            same_decision = [s for s in tracked if s.get("decision") == decision]
+            if same_decision:
+                correct_count = sum(1 for s in same_decision if s.get("was_correct"))
+                hist_win_rate = correct_count / len(same_decision)
+                # Adjust confidence: boost if history supports, dampen if not
+                adj = (hist_win_rate - 0.5) * 0.2  # +/-10% max
+                confidence = round(max(0.05, min(1.0, confidence + adj)), 2)
+                memory_note = f", memory={len(same_decision)} similar ({correct_count} correct, adj={adj:+.2f})"
+    except Exception as e:
+        logger.debug(f"[DecisionAgent] Memory query skipped: {e}")
+
     state["decision"] = decision
     state["confidence"] = confidence
     state["logs"].append(
-        f"[DecisionAgent] sector={sector}, weights={weights}, score={round(score, 4)} -> {decision} (confidence={confidence})"
+        f"[DecisionAgent] sector={sector}, score={round(score, 4)} -> {decision} (confidence={confidence}{memory_note})"
     )
     return state

@@ -25,6 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from graph.builder import build_graph
+from tools.memory import store_analysis
 
 # Compile graph once at module level
 _graph = build_graph()
@@ -64,6 +65,11 @@ def run_analysis(ticker: str, portfolio_value: float = 100_000) -> dict:
     final_state = _graph.invoke(initial_state)
 
     result = _format_result(ticker, final_state)
+    # Store in vector memory for learning
+    try:
+        store_analysis(ticker, result, final_state)
+    except Exception as e:
+        logger.debug(f"Memory store skipped: {e}")
     return result
 
 
@@ -88,6 +94,10 @@ def run_analysis_raw(ticker: str, portfolio_value: float = 100_000) -> tuple[dic
     }
     final_state = _graph.invoke(initial_state)
     result = _format_result(ticker, final_state)
+    try:
+        store_analysis(ticker, result, final_state)
+    except Exception as e:
+        logger.debug(f"Memory store skipped: {e}")
     return result, final_state
 
 
