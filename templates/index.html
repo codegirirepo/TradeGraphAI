@@ -23,6 +23,8 @@
                 <span class="nav-icon">&#8644;</span> Compare</a></li>
             <li><a href="#" class="nav-link" data-tab="watchlist" onclick="switchTab('watchlist')">
                 <span class="nav-icon">&#9829;</span> Watchlist</a></li>
+            <li><a href="#" class="nav-link" data-tab="aipicks" onclick="switchTab('aipicks')">
+                <span class="nav-icon">&#127758;</span> AI Picks</a></li>
             <li><a href="/history" class="nav-link">
                 <span class="nav-icon">&#128197;</span> History</a></li>
             <li><a href="/backtest" class="nav-link">
@@ -153,6 +155,42 @@
                     </div>
                     <div class="watchlist-grid" id="watchlist-grid"></div>
                     <p class="empty-state hidden" id="watchlist-empty">No tickers in watchlist yet</p>
+                </div>
+            </section>
+            <!-- ── Tab: AI Picks ─────────────────────────── -->
+            <section class="tab-content" id="tab-aipicks">
+                <div class="page-title">
+                    <h1>AI Stock Picks</h1>
+                    <p>Recommendations based on global news, geopolitics, and macro factors</p>
+                </div>
+
+                <div class="glass-card">
+                    <button class="btn-primary" id="macro-btn" onclick="loadMacroPicks()">
+                        <span class="btn-icon">&#127758;</span> Scan Global Macro Environment
+                    </button>
+                </div>
+
+                <!-- Macro Indicators -->
+                <div class="glass-card hidden" id="macro-indicators-card">
+                    <h2>Market Indicators</h2>
+                    <div class="kpi-row" id="macro-kpis"></div>
+                </div>
+
+                <!-- Active Themes -->
+                <div class="glass-card hidden" id="macro-themes-card">
+                    <h2>Active Macro Themes</h2>
+                    <div id="macro-themes"></div>
+                </div>
+
+                <!-- Recommendations -->
+                <div class="glass-card hidden" id="macro-recs-card">
+                    <h2>Recommended Stocks</h2>
+                    <div class="compare-table-wrap">
+                        <table class="compare-table" id="macro-recs-table">
+                            <thead><tr><th>Action</th><th>Ticker</th><th>Name</th><th>Price</th><th>Sector</th><th>Theme</th><th>Reason</th><th></th></tr></thead>
+                            <tbody id="macro-recs-body"></tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         </main>

@@ -353,3 +353,73 @@ renderWatchlist();
 function exportPDF() {
     if (currentJobId) window.open(`/api/export/pdf/${currentJobId}`, "_blank");
 }
+
+// ── AI Picks (Macro Intelligence) ───────────────────────
+async function loadMacroPicks() {
+    document.getElementById("macro-btn").disabled = true;
+    document.getElementById("macro-btn").textContent = "Scanning global markets...";
+
+    try {
+        const resp = await fetch("/api/macro");
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+        renderMacroResults(data);
+    } catch (e) {
+        alert("Macro scan failed: " + e.message);
+    } finally {
+        document.getElementById("macro-btn").disabled = false;
+        document.getElementById("macro-btn").innerHTML = '<span class="btn-icon">&#127758;</span> Scan Global Macro Environment';
+    }
+}
+
+function renderMacroResults(data) {
+    // Indicators
+    const kpis = document.getElementById("macro-kpis");
+    kpis.innerHTML = "";
+    for (const [key, ind] of Object.entries(data.macro_indicators || {})) {
+        const color = ind.change_5d_pct > 0 ? "var(--buy)" : ind.change_5d_pct < 0 ? "var(--sell)" : "";
+        const arrow = ind.change_5d_pct > 0 ? "\u25B2" : ind.change_5d_pct < 0 ? "\u25BC" : "";
+        kpis.innerHTML += `<div class="kpi">
+            <div class="kpi-value" style="color:${color}">${ind.current.toLocaleString()} <small>${arrow}${ind.change_5d_pct}%</small></div>
+            <div class="kpi-label">${ind.name}</div>
+        </div>`;
+    }
+    document.getElementById("macro-indicators-card").classList.remove("hidden");
+
+    // Themes
+    const themes = document.getElementById("macro-themes");
+    themes.innerHTML = (data.active_themes || []).map(t =>
+        `<div class="warning-item" style="border-left-color:var(--accent)">
+            <strong>${t.label}</strong><br>
+            <small>${t.reason || ""}</small>
+            ${t.bullish?.length ? `<br><small style="color:var(--buy)">Bullish: ${t.bullish.join(", ")}</small>` : ""}
+            ${t.bearish?.length ? `<br><small style="color:var(--sell)">Bearish: ${t.bearish.join(", ")}</small>` : ""}
+        </div>`
+    ).join("");
+    document.getElementById("macro-themes-card").classList.remove("hidden");
+
+    // Recommendations table
+    const tbody = document.getElementById("macro-recs-body");
+    tbody.innerHTML = (data.recommendations || []).map(r => {
+        const actionCls = r.action === "BUY" ? "decision-BUY" : "decision-HOLD";
+        return `<tr>
+            <td><span class="decision-badge ${actionCls}" style="font-size:0.75rem;padding:0.2rem 0.5rem">${r.action}</span></td>
+            <td><strong>${r.ticker}</strong></td>
+            <td>${r.name}</td>
+            <td>${r.price ? "$" + r.price.toLocaleString() : "-"}</td>
+            <td>${r.sector}</td>
+            <td>${r.theme}</td>
+            <td style="font-size:0.78rem;color:var(--text-dim)">${r.reason}</td>
+            <td><button class="btn-ghost" style="font-size:0.7rem;padding:0.2rem 0.5rem" onclick="analyzeFromMacro('${r.ticker}')">Analyze</button></td>
+        </tr>`;
+    }).join("");
+    document.getElementById("macro-recs-card").classList.remove("hidden");
+}
+
+function analyzeFromMacro(ticker) {
+    selectedTickers.clear();
+    selectedTickers.add(ticker);
+    document.querySelectorAll(".stock-chip").forEach(b => b.classList.toggle("selected", b.dataset.ticker === ticker));
+    updateBar();
+    switchTab("analyze");
+}

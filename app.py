@@ -24,6 +24,7 @@ from tools.storage import save_job, complete_job, save_result, get_history
 from tools.portfolio import analyze_portfolio_risk
 from tools.backtester import run_backtest
 from tools.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
+from tools.macro_agent import get_macro_recommendations
 
 logging.basicConfig(
     level=logging.INFO,
@@ -381,6 +382,17 @@ def backtest_api():
 @app.route("/backtest")
 def backtest_page():
     return render_template("backtest.html", stocks=STOCK_UNIVERSE)
+
+
+@app.route("/api/macro")
+def macro_api():
+    """Get AI stock recommendations based on macro/geopolitical analysis."""
+    try:
+        result = get_macro_recommendations()
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Macro analysis failed: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/bot/start", methods=["POST"])
